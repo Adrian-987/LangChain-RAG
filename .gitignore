@@ -1,0 +1,14 @@
+# 本地密钥与运行数据
+.env
+backend/.env
+backend/data/
+backend/.venv/
+data/
+backend/*.log
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+/.codex/checks/
