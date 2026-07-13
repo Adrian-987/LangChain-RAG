@@ -11,7 +11,7 @@ from .config import settings
 from .database import Base, engine, get_db, SessionLocal
 from .models import Conversation, KnowledgeDocument, Message, User
 from .rag import ask_knowledge_base, delete_document_vectors, get_document_chunks, index_document, rebuild_vector_store, save_uploaded_file
-from .schemas import AskRequest, AskResponse, ChunkOut, ConversationCreate, ConversationDetail, ConversationOut, ConversationRename, DocumentOut, LoginRequest, MessageOut, RegisterRequest, TokenOut, UserOut
+from .schemas import AdminUserListOut, AskRequest, AskResponse, ChangePasswordRequest, ChunkOut, ConversationCreate, ConversationDetail, ConversationOut, ConversationRename, DocumentOut, LoginRequest, MessageOut, RegisterRequest, TokenOut, UserOut
 from .security import create_access_token, get_current_user, hash_password, require_admin, verify_password
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -71,6 +71,25 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
+@app.post("/api/auth/change-password")
+def change_password(payload: ChangePasswordRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(400, detail="原密码不正确")
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(400, detail="两次输入的新密码不一致")
+    if verify_password(payload.new_password, user.password_hash):
+        raise HTTPException(400, detail="新密码不能与原密码相同")
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    return {"message": "密码修改成功，请重新登录"}
+
+
+@app.get("/api/admin/users", response_model=AdminUserListOut)
+def admin_users(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    users = db.query(User).order_by(User.created_at.asc()).all()
+    return AdminUserListOut(total=len(users), users=users)
+
+
 @app.get("/api/conversations", response_model=list[ConversationOut])
 def list_conversations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Conversation).filter_by(user_id=user.id).order_by(Conversation.updated_at.desc()).all()
@@ -114,7 +133,33 @@ def ask(conversation_id: int, payload: AskRequest, user: User = Depends(get_curr
     conversation.updated_at = datetime.utcnow()
     if conversation.title == "新对话": conversation.title = payload.question[:30]
     db.commit()
-    return AskResponse(answer=answer, sources=sources, has_general_supplement=supplement, response_ms=response_ms)
+    db.refresh(assistant_message)
+    return AskResponse(message_id=assistant_message.id, answer=answer, sources=sources, has_general_supplement=supplement, response_ms=response_ms)
+
+
+@app.post("/api/conversations/{conversation_id}/messages/{message_id}/regenerate", response_model=MessageOut)
+def regenerate_answer(conversation_id: int, message_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = _conversation_or_404(db, conversation_id, user)
+    messages = list(conversation.messages)
+    target_index = next((index for index, message in enumerate(messages) if message.id == message_id), None)
+    if target_index is None:
+        raise HTTPException(404, detail="未找到这条回答")
+    target = messages[target_index]
+    if target.role != "assistant":
+        raise HTTPException(400, detail="只能重新生成 AI 回答")
+    question_index = next((index for index in range(target_index - 1, -1, -1) if messages[index].role == "user"), None)
+    if question_index is None:
+        raise HTTPException(400, detail="未找到这条回答对应的问题")
+    question = messages[question_index].content
+    history = [(message.role, message.content) for message in messages[:question_index]]
+    answer, sources, supplement, _ = ask_knowledge_base(question, history)
+    target.content = answer
+    target.sources_json = json.dumps(sources, ensure_ascii=False)
+    target.has_general_supplement = supplement
+    conversation.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(target)
+    return _message_out(target)
 
 
 def _process_document(document_id: int, path: str, name: str) -> None:

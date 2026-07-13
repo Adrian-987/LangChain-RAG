@@ -15,6 +15,7 @@ class UserOut(BaseModel):
     id: int
     username: str
     role: str
+    created_at: datetime
     model_config = {"from_attributes": True}
 
 
@@ -22,6 +23,17 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=6, max_length=100)
+    new_password: str = Field(min_length=6, max_length=100)
+    confirm_password: str = Field(min_length=6, max_length=100)
+
+
+class AdminUserListOut(BaseModel):
+    total: int
+    users: list[UserOut]
 
 
 class ConversationCreate(BaseModel):
@@ -65,6 +77,7 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
+    message_id: int
     answer: str
     sources: list[SourceOut]
     has_general_supplement: bool

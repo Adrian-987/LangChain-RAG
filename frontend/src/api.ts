@@ -1,6 +1,7 @@
 // The FastAPI server also serves the built web app, so API calls stay on one origin.
 const API = '/api'
-export type User = { id:number; username:string; role:'admin'|'user' }
+export type User = { id:number; username:string; role:'admin'|'user'; created_at:string }
+export type UserOverview = { total:number; users:User[] }
 export type Conversation = { id:number; title:string; created_at:string; updated_at:string }
 export type Source = { document:string; location:string; content:string; score?:number }
 export type ChatMessage = { id:number; role:'user'|'assistant'; content:string; sources:Source[]; has_general_supplement:boolean; created_at:string }
@@ -13,12 +14,15 @@ export const api = {
   login:(username:string,password:string)=>request<{access_token:string;user:User}>('/auth/login',{method:'POST',body:JSON.stringify({username,password})}),
   register:(username:string,password:string)=>request<{access_token:string;user:User}>('/auth/register',{method:'POST',body:JSON.stringify({username,password})}),
   me:()=>request<User>('/auth/me'),
+  changePassword:(current_password:string,new_password:string,confirm_password:string)=>request<{message:string}>('/auth/change-password',{method:'POST',body:JSON.stringify({current_password,new_password,confirm_password})}),
+  users:()=>request<UserOverview>('/admin/users'),
   conversations:()=>request<Conversation[]>('/conversations'),
   createConversation:(title='新对话')=>request<Conversation>('/conversations',{method:'POST',body:JSON.stringify({title})}),
   conversation:(id:number)=>request<Conversation & {messages:ChatMessage[]}>(`/conversations/${id}`),
   renameConversation:(id:number,title:string)=>request<Conversation>(`/conversations/${id}`,{method:'PATCH',body:JSON.stringify({title})}),
   deleteConversation:(id:number)=>request(`/conversations/${id}`,{method:'DELETE'}),
-  ask:(id:number,question:string)=>request<{answer:string;sources:Source[];has_general_supplement:boolean;response_ms:number}>(`/conversations/${id}/ask`,{method:'POST',body:JSON.stringify({question})}),
+  ask:(id:number,question:string)=>request<{message_id:number;answer:string;sources:Source[];has_general_supplement:boolean;response_ms:number}>(`/conversations/${id}/ask`,{method:'POST',body:JSON.stringify({question})}),
+  regenerate:(conversationId:number,messageId:number)=>request<ChatMessage>(`/conversations/${conversationId}/messages/${messageId}/regenerate`,{method:'POST'}),
   documents:()=>request<DocumentItem[]>('/documents'),
   chunks:(id:number)=>request<DocumentChunk[]>(`/documents/${id}/chunks`),
   upload:(file:File)=>{const f=new FormData();f.append('file',file);return request<DocumentItem>('/documents',{method:'POST',body:f})},

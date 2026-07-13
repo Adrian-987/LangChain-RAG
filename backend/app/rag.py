@@ -192,7 +192,7 @@ def ask_knowledge_base(question: str, history: list[tuple[str, str]]) -> tuple[s
     context = "\n\n".join(f"【资料 {i}｜{doc.metadata.get('source')}｜{doc.metadata.get('location')}】\n{doc.page_content}" for i, (doc, _) in enumerate(valid, start=1)) or "没有检索到相关知识库资料。"
     recent_history = "\n".join(f"{'用户' if role == 'user' else '助手'}：{content}" for role, content in history[-6:]) or "无"
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是能力完整、乐于助人的通用助手。知识库资料是高价值的补充信息：有相关资料时优先结合它回答；没有相关资料时仍需依靠自己的知识正常回答问候、常识和专业问题，绝不能只回复资料不足。只有当你使用自己的知识补充资料之外的内容时，另起一段并以“【通用补充】”开头。不要编造文件、页码或引用。"),
+        ("system", "你是能力完整、乐于助人的通用助手。知识库资料是高价值的补充信息：有相关资料时优先结合它回答；没有相关资料时仍需依靠自己的知识正常回答问候、常识和专业问题，绝不能只回复资料不足。只有当你使用自己的知识补充资料之外的内容时，另起一段并以“【通用补充】”开头。不要编造文件、页码或引用。请使用规范、简洁的 Markdown：小标题后使用中文冒号，列表使用标准短横线，粗体标记必须成对，不要输出多余符号。"),
         ("human", "历史对话：\n{history}\n\n知识库资料：\n{context}\n\n问题：{question}"),
     ])
     try:
