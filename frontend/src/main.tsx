@@ -91,7 +91,7 @@ function Sidebar(props: SidebarProps) {
       <div className="conversation-list">
         {props.conversations.map(item => <div className={`conversation-item ${props.view === 'chat' && item.id === props.active ? 'active' : ''}`} key={item.id}>
           <button className="conversation-main" onClick={() => props.onSelect(item.id)}><MessageSquare/><span>{item.title}</span></button>
-          <details className="item-menu"><summary title="更多操作"><MoreHorizontal/></summary><div><button onClick={() => props.onRename(item)}><Pencil/>重命名</button><button className="danger-text" onClick={() => props.onDelete(item.id)}><Trash2/>删除</button></div></details>
+          <details className="item-menu" data-dismiss-on-outside><summary title="更多操作"><MoreHorizontal/></summary><div><button onClick={() => props.onRename(item)}><Pencil/>重命名</button><button className="danger-text" onClick={() => props.onDelete(item.id)}><Trash2/>删除</button></div></details>
         </div>)}
       </div>
       <nav className="sidebar-nav">
@@ -114,7 +114,7 @@ function Topbar({ user, view, title, onMenu, onView, onLogout }: { user: User; v
   return <header className="topbar">
     <button className="mobile-menu" onClick={onMenu}><Menu/></button>
     <div><h1>{title}</h1><p>{descriptions[view]}</p></div>
-    <details className="user-menu"><summary><span className="avatar">{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b><ChevronDown/></summary><div><button onClick={() => onView('profile')}><UserRound/>个人中心</button><button onClick={onLogout}><LogOut/>退出登录</button></div></details>
+    <details className="user-menu" data-dismiss-on-outside><summary><span className="avatar">{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b><ChevronDown/></summary><div><button onClick={() => onView('profile')}><UserRound/>个人中心</button><button onClick={onLogout}><LogOut/>退出登录</button></div></details>
   </header>
 }
 
@@ -269,6 +269,19 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   }
   function selectConversation(id: number) { setActive(id); setView('chat'); setMobileOpen(false) }
   function changeView(next: View) { setView(next); setMobileOpen(false) }
+
+  useEffect(() => {
+    function closeMenusWhenClickingOutside(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      document.querySelectorAll<HTMLDetailsElement>('details[data-dismiss-on-outside][open]').forEach(menu => {
+        if (!menu.contains(target)) menu.removeAttribute('open')
+      })
+    }
+
+    document.addEventListener('pointerdown', closeMenusWhenClickingOutside)
+    return () => document.removeEventListener('pointerdown', closeMenusWhenClickingOutside)
+  }, [])
 
   const title = view === 'chat' ? items.find(item => item.id === active)?.title || '新对话' : view === 'documents' ? '知识库管理' : view === 'users' ? '用户管理' : '个人中心'
   return <div className="workspace">
